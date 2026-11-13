@@ -146,14 +146,19 @@ class JarvisWindow:
         footer = tk.Frame(self.root, bg=BG, padx=28, pady=12)
         footer.pack(side="bottom", fill="x", before=self.tabs)
         self.label(footer, "Аудио остаётся на вашем компьютере", 9, MUTED).pack(side="left")
-        self.label(footer, "Windows 10 / 11  •  v0.4.1", 9, MUTED).pack(side="right")
+        self.label(footer, "Windows 10 / 11  •  v0.4.2", 9, MUTED).pack(side="right")
         self._build_commands_tab(commands)
 
     def _build_commands_tab(self, parent):
         self.label(parent, "ВСЕ ФУНКЦИИ", 11, ACCENT).pack(anchor="w", pady=(0, 7))
-        guide = tk.Text(parent, height=14, bg=PANEL, fg=TEXT, font=(FONT, 10), wrap="word",
+        guide_frame = tk.Frame(parent, bg=BG)
+        guide_frame.pack(fill="x")
+        guide = tk.Text(guide_frame, height=9, bg=PANEL, fg=TEXT, font=(FONT, 10), wrap="word",
                         relief="flat", padx=13, pady=10, highlightbackground=BORDER, highlightthickness=1)
-        guide.pack(fill="x")
+        guide.pack(side="left", fill="x", expand=True)
+        guide_scroll = ttk.Scrollbar(guide_frame, command=guide.yview)
+        guide_scroll.pack(side="right", fill="y")
+        guide.configure(yscrollcommand=guide_scroll.set)
         guide.insert("1.0", (
             "Каждую команду начните со слова «Джарвис». Дождитесь паузы после команды.\n\n"
             "ГРОМКОСТЬ\n"

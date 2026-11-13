@@ -7,7 +7,7 @@
 
 ## Установка приложения на Windows
 
-Сборка с интерфейсом: **[Jarvis-Setup-0.4.1-x64.exe](https://github.com/Troll0Smesh/Test-Ruf-e/releases/download/v0.4.1-preview/Jarvis-Setup-0.4.1-x64.exe)**
+Сборка с интерфейсом: **[Jarvis-Setup-0.4.2-x64.exe](https://github.com/Troll0Smesh/Test-Ruf-e/releases/download/v0.4.2-preview/Jarvis-Setup-0.4.2-x64.exe)**
 (примерно 75 МБ). Это тестовая версия для 64-разрядной Windows 10/11.
 
 1. Запустите установщик и на шаге **«Папка установки»** выберите нужный диск

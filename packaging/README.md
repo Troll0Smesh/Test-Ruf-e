@@ -14,7 +14,7 @@ python3 -m venv .venv
 .venv/bin/python packaging/build_windows.py
 ```
 
-Результат: `dist/Jarvis-Setup-0.4.1-x64.exe` и SHA-256 рядом. Сборщик скачивает
+Результат: `dist/Jarvis-Setup-0.4.2-x64.exe` и SHA-256 рядом. Сборщик скачивает
 модель сам. Для существующей проверенной модели: `--model /path/to/model`.
 Параметры `--cache` и `--output` меняют каталоги временных данных и результата.
 Каталог `<cache>/payload` пересоздаётся при каждой сборке; не храните там свои файлы.

@@ -8,10 +8,10 @@ RequestExecutionLevel user
 SilentInstall silent
 AutoCloseWindow true
 ShowInstDetails nevershow
-VIProductVersion "0.4.1.0"
+VIProductVersion "0.4.2.0"
 VIAddVersionKey "ProductName" "Джарвис"
 VIAddVersionKey "FileDescription" "Голосовой помощник Джарвис"
-VIAddVersionKey "FileVersion" "0.4.1"
+VIAddVersionKey "FileVersion" "0.4.2"
 Section
   SetOutPath "$EXEDIR"
   Exec '"$EXEDIR\runtime\pythonw.exe" -I "$EXEDIR\app\launcher.py"'
