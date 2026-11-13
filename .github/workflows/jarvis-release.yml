@@ -1,0 +1,57 @@
+name: Build and publish Jarvis preview
+
+on:
+  push:
+    branches: [jarvis/release-v0.2.0]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: jarvis-release-v0.2.0
+  cancel-in-progress: false
+
+jobs:
+  windows-installer:
+    runs-on: ubuntu-latest
+    container: python:3.12-slim-trixie
+    timeout-minutes: 30
+    steps:
+      - name: Install packaging tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends nsis msitools gh git ca-certificates
+      - name: Check out release sources
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test application core
+        env:
+          PYTHONPATH: src
+        run: |
+          python - <<'PY'
+          import pathlib, sys, unittest
+          sys.path.insert(0, 'tests')
+          suite = unittest.TestSuite()
+          # Headless build container has no Tk. GUI tests were run locally
+          # under Xvfb; do not represent them as passed in this job.
+          for path in sorted(pathlib.Path('tests').glob('test_*.py')):
+              if path.name != 'test_gui.py':
+                  suite.addTests(unittest.defaultTestLoader.loadTestsFromName(path.stem))
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          sys.exit(not result.wasSuccessful())
+          PY
+      - name: Build bundled Windows x64 installer
+        run: python packaging/build_windows.py
+      - name: Archive matching sources
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git archive --format=zip --prefix=Jarvis-Source-0.2.0/ --output=dist/Jarvis-Source-0.2.0.zip HEAD src packaging tests pyproject.toml README.md LICENSE .gitignore .github
+      - name: Upload assets and publish preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release upload v0.2.0-preview dist/Jarvis-Setup-0.2.0-x64.exe dist/Jarvis-Setup-0.2.0-x64.exe.sha256 dist/Jarvis-Source-0.2.0.zip --clobber
+          gh release edit v0.2.0-preview --target "$GITHUB_SHA" --draft=false --prerelease --latest=false
