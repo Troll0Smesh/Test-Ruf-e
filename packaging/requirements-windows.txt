@@ -1,0 +1,17 @@
+# Windows x64 / CPython 3.12. Transitive versions retained for repeatable builds.
+vosk==0.3.45
+sounddevice==0.5.6
+webrtcvad-wheels==2.0.14.post1
+pycaw==20260927
+cffi==2.1.1
+comtypes==1.5.0
+psutil==7.2.2
+pycparser==3.12
+requests==2.34.2
+charset-normalizer==3.5.2
+idna==3.20
+urllib3==2.8.0
+certifi==2026.10.23
+srt==3.5.3
+tqdm==4.70.1
+websockets==17.4
