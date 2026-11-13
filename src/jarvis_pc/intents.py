@@ -6,17 +6,20 @@ from dataclasses import dataclass
 import re
 from typing import Literal
 
+from .targets import clean_targets
+
 
 ActionKind = Literal[
     "volume_set", "volume_change", "mute", "unmute",
-    "minimize_window", "minimize_all", "lock", "media_pause", "media_play",
+    "minimize_window", "minimize_all", "minimize_named", "restore_named",
+    "open_app", "open_site", "lock", "media_pause", "media_play",
 ]
 
 
 @dataclass(frozen=True, slots=True)
 class Action:
     kind: ActionKind
-    value: int | None = None
+    value: int | str | None = None
 
 
 _SMALL = (
@@ -59,7 +62,23 @@ def _number(text: str) -> int | None:
     return _NUMBERS.get(text)
 
 
-def parse_command(text: str) -> Action | None:
+def target_phrases(targets: dict | None) -> dict[str, Action]:
+    phrases: dict[str, Action] = {}
+    for alias in clean_targets(targets)["windows"]:
+        for phrase in (f"сверни окно {alias}", f"сверни {alias}"):
+            phrases[phrase] = Action("minimize_named", alias)
+        for phrase in (f"разверни окно {alias}", f"разверни {alias}", f"покажи окно {alias}"):
+            phrases[phrase] = Action("restore_named", alias)
+    for alias in clean_targets(targets)["apps"]:
+        for phrase in (f"открой приложение {alias}", f"запусти приложение {alias}", f"запусти {alias}"):
+            phrases[phrase] = Action("open_app", alias)
+    for alias in clean_targets(targets)["sites"]:
+        for phrase in (f"открой сайт {alias}", f"зайди на сайт {alias}", f"открой страницу {alias}"):
+            phrases[phrase] = Action("open_site", alias)
+    return phrases
+
+
+def parse_command(text: str, targets: dict | None = None) -> Action | None:
     """Parse an entire command, returning None for unsupported/ambiguous text.
 
     The wake word belongs to the listening state machine and must be removed
@@ -73,6 +92,10 @@ def parse_command(text: str) -> Action | None:
         text = text[:-len(" пожалуйста")]
     # A common transposition in typed commands; spoken recognition uses громче.
     text = re.sub(r"\bгрочме\b", "громче", text)
+
+    named = target_phrases(targets).get(text)
+    if named is not None:
+        return named
 
     if text in _MEDIA_PHRASES:
         return Action(_MEDIA_PHRASES[text])
@@ -131,7 +154,7 @@ for phrase in ["продолжи", "продолжить", "продолжай",
     _MEDIA_PHRASES[phrase] = "media_play"
 
 
-def command_phrases() -> list[str]:
+def command_phrases(targets: dict | None = None) -> list[str]:
     """Canonical spoken forms for a constrained offline recognizer grammar."""
     phrases = [
         "выключи звук", "отключи звук", "убери звук", "включи звук", "верни звук",
@@ -166,4 +189,5 @@ def command_phrases() -> list[str]:
     phrases += ["пожалуйста " + p for p in list(_MEDIA_PHRASES)]
     # The small model lacks the imperative "возобнови". Keep it for typed
     # commands, but use "возобновить" in speech; never reduce it to a bare noun.
+    phrases.extend(target_phrases(targets))
     return [p for p in dict.fromkeys(phrases) if "возобнови" not in p.split()]

@@ -38,18 +38,9 @@ class ExpandedCommands(unittest.TestCase):
         for phrase in ['звук на сорок','громче на двадцать','пауза','продолжить','поставь музыку на паузу']:
             self.assertIn(phrase,phrases)
 
-    def test_explicit_media_messages_are_distinct(self):
-        user32=Mock()
-        user32.GetForegroundWindow.return_value=123
-        with patch('jarvis_pc.actions.sys.platform','win32'), patch('jarvis_pc.actions._user32',return_value=user32):
-            Actions().execute(Action('media_pause'))
-            Actions().execute(Action('media_play'))
-        calls=user32.SendMessageTimeoutW.call_args_list
-        self.assertEqual(calls[0].args[3],47<<16)
-        self.assertEqual(calls[1].args[3],46<<16)
-        user32.keybd_event.assert_not_called()
-
-    def test_media_timeout_reports_error(self):
-        user32=Mock();user32.SendMessageTimeoutW.return_value=0
-        with patch('jarvis_pc.actions.sys.platform','win32'), patch('jarvis_pc.actions._user32',return_value=user32):
-            with self.assertRaises(ActionError): Actions().execute(Action('media_pause'))
+    def test_media_uses_stateful_backend_not_window_button(self):
+        with patch('jarvis_pc.actions.sys.platform','win32'), patch('jarvis_pc.actions._user32') as user32, \
+             patch('jarvis_pc.media.change_media', return_value='Воспроизведение уже на паузе') as change:
+            self.assertEqual(Actions().execute(Action('media_pause')), 'Воспроизведение уже на паузе')
+            change.assert_called_once_with('media_pause')
+            user32.assert_not_called()

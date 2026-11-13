@@ -1,0 +1,2 @@
+[console_scripts]
+jarvis = jarvis_pc.cli:main

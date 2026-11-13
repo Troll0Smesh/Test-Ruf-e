@@ -6,14 +6,14 @@ ManifestSupportedOS Win10
 !include "WinVer.nsh"
 Name "Джарвис"
 Icon "../src/jarvis_pc/assets/jarvis.ico"
-OutFile "${OUTPUT}/Jarvis-Setup-0.3.0-x64.exe"
+OutFile "${OUTPUT}/Jarvis-Setup-0.4.0-x64.exe"
 InstallDir "$LOCALAPPDATA\Programs\JarvisPC"
 RequestExecutionLevel user
 SetCompressor /SOLID zlib
-VIProductVersion "0.3.0.0"
+VIProductVersion "0.4.0.0"
 VIAddVersionKey "ProductName" "Джарвис"
 VIAddVersionKey "FileDescription" "Установка голосового помощника Джарвис"
-VIAddVersionKey "FileVersion" "0.3.0"
+VIAddVersionKey "FileVersion" "0.4.0"
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\Jarvis.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "Запустить Джарвис"
@@ -51,14 +51,14 @@ Section "Джарвис"
   SetOutPath "$INSTDIR"
   File /r "${PAYLOAD}/*"
   FileOpen $0 "$INSTDIR\.jarvis-install" w
-  FileWrite $0 "JarvisPC 0.3.0"
+  FileWrite $0 "JarvisPC 0.4.0"
   FileClose $0
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateDirectory "$SMPROGRAMS\Джарвис"
   CreateShortcut "$SMPROGRAMS\Джарвис\Джарвис.lnk" "$INSTDIR\Jarvis.exe"
   CreateShortcut "$DESKTOP\Джарвис.lnk" "$INSTDIR\Jarvis.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "DisplayName" "Джарвис"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "DisplayVersion" "0.3.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "DisplayVersion" "0.4.0"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "DisplayIcon" "$INSTDIR\Jarvis.exe"
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "NoModify" 1

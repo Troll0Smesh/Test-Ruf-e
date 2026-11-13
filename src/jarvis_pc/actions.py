@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import ctypes
 from ctypes import wintypes
+import os
+from pathlib import Path
 import sys
+import webbrowser
 from typing import TYPE_CHECKING
+
+from .targets import clean_targets
 
 if TYPE_CHECKING:
     from .intents import Action
@@ -13,7 +18,8 @@ if TYPE_CHECKING:
 
 _KINDS = frozenset({
     "volume_set", "volume_change", "mute", "unmute", "minimize_window",
-    "minimize_all", "lock", "media_pause", "media_play",
+    "minimize_all", "minimize_named", "restore_named", "open_app", "open_site",
+    "lock", "media_pause", "media_play",
 })
 
 
@@ -29,6 +35,9 @@ def _validate(action: Action) -> None:
             raise ValueError("Для громкости требуется целое число процентов")
         if action.kind == "volume_set" and not 0 <= action.value <= 100:
             raise ValueError("Громкость должна быть от 0 до 100 процентов")
+    if action.kind in {"minimize_named", "restore_named", "open_app", "open_site"}:
+        if not isinstance(action.value, str) or not action.value:
+            raise ValueError("Укажите имя окна, приложения или сайта")
 
 
 def _user32():
@@ -41,10 +50,16 @@ def _user32():
     user32.LockWorkStation.restype = wintypes.BOOL
     user32.keybd_event.argtypes = [wintypes.BYTE, wintypes.BYTE, wintypes.DWORD, ctypes.c_size_t]
     user32.keybd_event.restype = None
-    user32.GetShellWindow.argtypes = []
-    user32.GetShellWindow.restype = wintypes.HWND
-    user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, ctypes.c_size_t, ctypes.c_ssize_t, wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
-    user32.SendMessageTimeoutW.restype = ctypes.c_ssize_t
+    user32.EnumWindows.argtypes = [ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM), wintypes.LPARAM]
+    user32.EnumWindows.restype = wintypes.BOOL
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.IsWindowVisible.restype = wintypes.BOOL
+    user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    user32.GetWindowTextLengthW.restype = ctypes.c_int
+    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user32.GetWindowTextW.restype = ctypes.c_int
+    user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+    user32.SetForegroundWindow.restype = wintypes.BOOL
     return user32
 
 
@@ -59,8 +74,46 @@ def _endpoint():
     return device.EndpointVolume
 
 
+def visible_windows() -> list[tuple[int, str]]:
+    """Return titled, visible top-level windows for the settings selector."""
+    if sys.platform != "win32":
+        return []
+    user32 = _user32()
+    windows = []
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    @callback_type
+    def visit(handle, _):
+        if user32.IsWindowVisible(handle):
+            length = user32.GetWindowTextLengthW(handle)
+            if length:
+                buffer = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(handle, buffer, length + 1)
+                title = buffer.value.strip()
+                if title:
+                    windows.append((handle, title))
+        return True
+
+    user32.EnumWindows(visit, 0)
+    return windows
+
+
+def _find_window(title: str) -> int:
+    windows = visible_windows()
+    exact = [handle for handle, name in windows if name.casefold() == title.casefold()]
+    matches = exact or [handle for handle, name in windows if title.casefold() in name.casefold()]
+    if not matches:
+        raise ActionError(f"Окно «{title}» не найдено. Обновите его заголовок в настройках.")
+    if len(matches) > 1:
+        raise ActionError(f"Найдено несколько окон «{title}». Укажите более точный заголовок.")
+    return matches[0]
+
+
 class Actions:
     """Execute only the explicit allowlist of local Windows operations."""
+
+    def __init__(self, targets: dict | None = None) -> None:
+        self.targets = clean_targets(targets)
 
     def execute(self, action: Action) -> str:
         _validate(action)
@@ -74,6 +127,32 @@ class Actions:
             raise ActionError(f"Не удалось выполнить {action.kind}: {exc}") from exc
 
     def _execute(self, action: Action) -> str:
+        if action.kind in {"media_pause", "media_play"}:
+            from .media import change_media
+
+            return change_media(action.kind)
+        if action.kind in {"minimize_named", "restore_named", "open_app", "open_site"}:
+            kind = {"minimize_named": "windows", "restore_named": "windows", "open_app": "apps", "open_site": "sites"}[action.kind]
+            value = self.targets[kind].get(action.value)
+            if value is None:
+                raise ActionError(f"Имя «{action.value}» не настроено")
+            if action.kind == "open_app":
+                if not Path(value).is_file():
+                    raise ActionError(f"Файл приложения не найден: {value}")
+                os.startfile(value)
+                return f"Приложение «{action.value}» открыто"
+            if action.kind == "open_site":
+                if not webbrowser.open(value):
+                    raise ActionError("Браузер не открыл сайт")
+                return f"Сайт «{action.value}» открыт"
+            user32 = _user32()
+            handle = _find_window(value)
+            if action.kind == "minimize_named":
+                user32.ShowWindow(handle, 6)
+                return f"Окно «{action.value}» свёрнуто"
+            user32.ShowWindow(handle, 3)  # SW_MAXIMIZE, including minimized windows
+            user32.SetForegroundWindow(handle)
+            return f"Окно «{action.value}» развёрнуто"
         if action.kind in {"volume_set", "volume_change", "mute", "unmute"}:
             volume = _endpoint()  # Resolve again if the default speaker changed.
             if action.kind in {"mute", "unmute"}:
@@ -89,16 +168,6 @@ class Actions:
             return f"Громкость: {percent}%"
 
         user32 = _user32()
-        if action.kind in {"media_pause", "media_play"}:
-            window = user32.GetForegroundWindow() or user32.GetShellWindow()
-            if not window:
-                raise ActionError("Не найдено окно для медиакоманды")
-            result = ctypes.c_size_t()
-            # Explicit PAUSE/PLAY, never the ambiguous PLAY_PAUSE toggle.
-            command = 47 if action.kind == "media_pause" else 46
-            if not user32.SendMessageTimeoutW(window, 0x0319, window, command << 16, 0x0002, 1000, ctypes.byref(result)):
-                raise ActionError("Проигрыватель не ответил на медиакоманду")
-            return "Отправлена команда паузы" if action.kind == "media_pause" else "Отправлена команда продолжения"
         if action.kind == "lock":
             if not user32.LockWorkStation():
                 raise ActionError("Windows отклонила блокировку компьютера")

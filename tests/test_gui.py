@@ -28,7 +28,8 @@ class GuiTests(unittest.TestCase):
         self.app.device_var.set("Микрофон")
         self.app.silence_var.set("1,2")
         self.app.toggle_listening()
-        self.listener.start.assert_called_once_with(device=3, silence=1.2, dry_run=self.app.dry_run.get())
+        self.listener.start.assert_called_once_with(device=3, silence=1.2, dry_run=self.app.dry_run.get(),
+                                                     targets=self.app.settings["targets"])
         self.assertEqual(str(self.app.device_box["state"]), "disabled")
         self.app.toggle_listening()
         self.listener.stop.assert_called_once()
@@ -59,3 +60,13 @@ class GuiTests(unittest.TestCase):
         self.app.close()
         self.listener.stop.assert_called_once()
         self.assertTrue(self.app.closing)
+
+    def test_commands_tab_and_named_site(self):
+        self.assertEqual(self.app.tabs.tab(1, "text"), "Функции и команды")
+        self.app.target_kind.set("Сайт")
+        self.app._target_kind_changed()
+        self.app.target_alias.insert(0, "Новости")
+        self.app.target_value.set("https://example.org")
+        self.app.save_target()
+        self.assertEqual(self.app.settings["targets"]["sites"]["новости"], "https://example.org")
+        self.assertIn("новости", self.app.target_list.get(0))

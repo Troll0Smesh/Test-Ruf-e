@@ -16,12 +16,14 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(load_settings(p)["silence"], 0.8)
             for data in ["broken", "[]", '{"silence":99,"dry_run":"false","device":2}']:
                 p.write_text(data)
-                self.assertEqual(load_settings(p), {"device": "", "silence": 0.8, "dry_run": False})
+                self.assertEqual(load_settings(p), {"device": "", "silence": 0.8, "dry_run": False,
+                                                    "targets": {"windows": {}, "apps": {}, "sites": {}}})
 
     def test_round_trip_unicode(self):
         with tempfile.TemporaryDirectory() as root:
             p = Path(root) / "nested" / "settings.json"
-            settings = {"device": "Микрофон", "silence": 1.2, "dry_run": True}
+            settings = {"device": "Микрофон", "silence": 1.2, "dry_run": True,
+                        "targets": {"windows": {"браузер": "Firefox"}, "apps": {}, "sites": {}}}
             save_settings(settings, p)
             self.assertEqual(load_settings(p), settings)
             self.assertFalse(p.with_suffix(".tmp").exists())

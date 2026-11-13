@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: jarvis-pc
+Version: 0.1.0
+Summary: Лёгкий локальный голосовой помощник для Windows
+Requires-Python: <3.13,>=3.10
+License-File: LICENSE
+Requires-Dist: vosk==0.3.45
+Requires-Dist: sounddevice==0.5.6
+Requires-Dist: webrtcvad-wheels==2.0.14.post1
+Requires-Dist: pycaw==20260927; sys_platform == "win32"
+Dynamic: license-file

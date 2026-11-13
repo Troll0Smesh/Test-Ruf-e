@@ -11,13 +11,14 @@ from .actions import Actions, DryRunActions
 from .engine import Assistant, Settings
 from .intents import command_phrases, parse_command
 from .model import default_model_path, download_model, model_exists
+from .desktop import load_settings
 
 
-def build_recognizer(model_path: Path):
+def build_recognizer(model_path: Path, targets: dict | None = None):
     from vosk import KaldiRecognizer, Model, SetLogLevel
 
     SetLogLevel(-1)
-    phrases = command_phrases() + ["отмена", "не надо", "не выполняй команду"]
+    phrases = command_phrases(targets) + ["отмена", "не надо", "не выполняй команду"]
     grammar = phrases + ["[unk]", "джарвис", "джервис"]
     for wake in ("джарвис", "джервис"):
         grammar.extend(wake + " " + phrase for phrase in phrases)
@@ -49,9 +50,10 @@ def main(argv: list[str] | None = None) -> int:
             import sounddevice as sd
             print(sd.query_devices())
             return 0
-        actions = DryRunActions() if args.dry_run else Actions()
+        targets = load_settings()["targets"]
+        actions = DryRunActions() if args.dry_run else Actions(targets)
         if args.text is not None:
-            action = parse_command(args.text)
+            action = parse_command(args.text, targets)
             if action is None:
                 raise ValueError("Неизвестная команда. Пример: --text 'громкость 50'")
             print(actions.execute(action))
@@ -64,8 +66,8 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("Русская модель не найдена. Сначала выполните jarvis --download-model (с тем же --model, если он задан).")
         import webrtcvad
         from .audio import listen, run_wav
-        model, recognizer = build_recognizer(args.model)
-        assistant = Assistant(recognizer, actions.execute, settings=settings)
+        model, recognizer = build_recognizer(args.model, targets)
+        assistant = Assistant(recognizer, actions.execute, settings=settings, targets=targets)
         vad = webrtcvad.Vad(2)
         if args.wav:
             run_wav(args.wav, assistant, vad)

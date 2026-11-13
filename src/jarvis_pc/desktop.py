@@ -10,6 +10,7 @@ import sys
 from threading import Event, Thread
 
 from .model import MODEL_NAME, default_model_path, download_model, model_exists
+from .targets import clean_targets
 
 
 def settings_path() -> Path:
@@ -18,7 +19,7 @@ def settings_path() -> Path:
 
 
 def load_settings(path: Path | None = None) -> dict:
-    defaults = {"device": "", "silence": 0.8, "dry_run": False}
+    defaults = {"device": "", "silence": 0.8, "dry_run": False, "targets": clean_targets(None)}
     try:
         data = json.loads((path or settings_path()).read_text(encoding="utf-8"))
         if not isinstance(data, dict):
@@ -30,6 +31,7 @@ def load_settings(path: Path | None = None) -> dict:
             defaults["silence"] = silence
         if type(data.get("dry_run")) is bool:
             defaults["dry_run"] = data["dry_run"]
+        defaults["targets"] = clean_targets(data.get("targets"))
     except (OSError, ValueError):
         pass
     return defaults
@@ -74,17 +76,17 @@ class Listener:
     def running(self) -> bool:
         return self.thread is not None and self.thread.is_alive()
 
-    def start(self, *, device=None, silence=0.8, dry_run=False) -> None:
+    def start(self, *, device=None, silence=0.8, dry_run=False, targets=None) -> None:
         if self.running:
             raise RuntimeError("Прослушивание уже запущено")
         self.stop_event.clear()
-        self.thread = Thread(target=self._run, args=(device, silence, dry_run), daemon=True, name="Jarvis-listener")
+        self.thread = Thread(target=self._run, args=(device, silence, dry_run, clean_targets(targets)), daemon=True, name="Jarvis-listener")
         self.thread.start()
 
     def stop(self) -> None:
         self.stop_event.set()
 
-    def _run(self, device, silence, dry_run) -> None:
+    def _run(self, device, silence, dry_run, targets) -> None:
         com = None
         com_initialized = False
         try:
@@ -103,7 +105,7 @@ class Listener:
                 download_model(model_path)
             if self.stop_event.is_set():
                 return
-            self._listen(model_path, device, silence, dry_run)
+            self._listen(model_path, device, silence, dry_run, targets)
         except Exception as error:
             self.emit("error", str(error))
         finally:
@@ -112,17 +114,17 @@ class Listener:
             gc.collect()
             self.emit("stopped", "Прослушивание остановлено")
 
-    def _listen(self, model_path, device, silence, dry_run) -> None:
+    def _listen(self, model_path, device, silence, dry_run, targets) -> None:
         from .actions import Actions, DryRunActions
         from .audio import listen
         from .cli import build_recognizer
         from .engine import Assistant, Settings
         import webrtcvad
 
-        model, recognizer = build_recognizer(model_path)
+        model, recognizer = build_recognizer(model_path, targets)
         if self.stop_event.is_set():
             return
-        actions = DryRunActions() if dry_run else Actions()
+        actions = DryRunActions() if dry_run else Actions(targets)
 
         def notify(message):
             self.emit("message", message)
@@ -133,5 +135,5 @@ class Listener:
             else:
                 self.emit("state", "Ожидаю «Джарвис»")
 
-        assistant = Assistant(recognizer, actions.execute, notify, Settings(silence_seconds=silence))
+        assistant = Assistant(recognizer, actions.execute, notify, Settings(silence_seconds=silence), targets)
         listen(assistant, webrtcvad.Vad(2), device, self.stop_event, lambda v: self.emit("level", v))

@@ -53,11 +53,13 @@ class Assistant:
         execute: Callable[[Action], object],
         notify: Callable[[str], object] = print,
         settings: Settings = Settings(),
+        targets: dict | None = None,
     ) -> None:
         self.recognizer = recognizer
         self.execute = execute
         self.notify = notify
         self.settings = settings
+        self.targets = targets
         self.clock = 0.0
         self.active = False
         self.wake_confirmed = False
@@ -149,7 +151,7 @@ class Assistant:
             self.wake_scores.clear()
             return
 
-        action = parse_command(command) if confidence >= self.settings.min_confidence else None
+        action = parse_command(command, self.targets) if confidence >= self.settings.min_confidence else None
         self.reset()  # disarm BEFORE the side effect; at most one action per wake
         if action is None:
             self.notify("Команда не распознана уверенно. Скажите «Джарвис» и повторите.")
