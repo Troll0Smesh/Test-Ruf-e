@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 _KINDS = frozenset({
     "volume_set", "volume_change", "mute", "unmute", "minimize_window",
-    "minimize_all", "lock",
+    "minimize_all", "lock", "media_pause", "media_play",
 })
 
 
@@ -41,6 +41,10 @@ def _user32():
     user32.LockWorkStation.restype = wintypes.BOOL
     user32.keybd_event.argtypes = [wintypes.BYTE, wintypes.BYTE, wintypes.DWORD, ctypes.c_size_t]
     user32.keybd_event.restype = None
+    user32.GetShellWindow.argtypes = []
+    user32.GetShellWindow.restype = wintypes.HWND
+    user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, ctypes.c_size_t, ctypes.c_ssize_t, wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
+    user32.SendMessageTimeoutW.restype = ctypes.c_ssize_t
     return user32
 
 
@@ -85,6 +89,16 @@ class Actions:
             return f"Громкость: {percent}%"
 
         user32 = _user32()
+        if action.kind in {"media_pause", "media_play"}:
+            window = user32.GetForegroundWindow() or user32.GetShellWindow()
+            if not window:
+                raise ActionError("Не найдено окно для медиакоманды")
+            result = ctypes.c_size_t()
+            # Explicit PAUSE/PLAY, never the ambiguous PLAY_PAUSE toggle.
+            command = 47 if action.kind == "media_pause" else 46
+            if not user32.SendMessageTimeoutW(window, 0x0319, window, command << 16, 0x0002, 1000, ctypes.byref(result)):
+                raise ActionError("Проигрыватель не ответил на медиакоманду")
+            return "Отправлена команда паузы" if action.kind == "media_pause" else "Отправлена команда продолжения"
         if action.kind == "lock":
             if not user32.LockWorkStation():
                 raise ActionError("Windows отклонила блокировку компьютера")

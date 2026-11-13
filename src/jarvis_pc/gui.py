@@ -121,7 +121,7 @@ class JarvisWindow:
         for i, (title, text) in enumerate([
             ("01  ГРОМКОСТЬ", "«Громкость на пятьдесят процентов»"),
             ("02  ОКНА", "«Сверни все окна»"),
-            ("03  БЛОКИРОВКА", "«Заблокируй ноутбук»"),
+            ("03  ВОСПРОИЗВЕДЕНИЕ", "«Поставь музыку на паузу»"),
         ]):
             card = tk.Frame(examples, bg=PANEL, padx=13, pady=13)
             card.grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 8, 0))
@@ -137,7 +137,7 @@ class JarvisWindow:
         footer = tk.Frame(self.root, bg=BG, padx=28, pady=12)
         footer.pack(side="bottom", fill="x", before=content)
         self.label(footer, "Аудио остаётся на вашем компьютере", 9, MUTED).pack(side="left")
-        self.label(footer, "Windows 10 / 11  •  v0.2.0", 9, MUTED).pack(side="right")
+        self.label(footer, "Windows 10 / 11  •  v0.3.0", 9, MUTED).pack(side="right")
 
     def log(self, text):
         self.journal.configure(state="normal")

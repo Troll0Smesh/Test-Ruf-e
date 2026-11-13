@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jarvis-pc"
-version = "0.2.0"
+version = "0.3.0"
 description = "Лёгкий локальный голосовой помощник для Windows"
 requires-python = ">=3.10,<3.13"
 dependencies = [

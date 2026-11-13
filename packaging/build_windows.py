@@ -113,12 +113,12 @@ def main():
     # Remove standard library test suites, headers and build tools from runtime.
     for directory in ("include", "libs", "Scripts", "Lib/test", "Lib/ensurepip", "Lib/idlelib", "Lib/tkinter/test"):
         shutil.rmtree(runtime / directory, ignore_errors=True)
-    manifest = {"version": "0.2.0", "python": "3.12.10", "architecture": "x64", "sources": ARTIFACTS,
+    manifest = {"version": "0.3.0", "python": "3.12.10", "architecture": "x64", "sources": ARTIFACTS,
                 "wheels": {p.name: sha(p) for p in sorted(wheels.glob("*.whl"))}}
     (payload / "BUILD-MANIFEST.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     for script in ("launcher.nsi", "installer.nsi"):
         subprocess.run([makensis, f"-DPAYLOAD={payload}", f"-DOUTPUT={output}", str(ROOT / "packaging" / script)], check=True)
-    installer = output / "Jarvis-Setup-0.2.0-x64.exe"
+    installer = output / "Jarvis-Setup-0.3.0-x64.exe"
     installer.with_suffix(".exe.sha256").write_text(f"{sha(installer)}  {installer.name}\n", encoding="ascii")
     print(f"Built {installer} ({installer.stat().st_size / 1024 / 1024:.1f} MiB)")
 

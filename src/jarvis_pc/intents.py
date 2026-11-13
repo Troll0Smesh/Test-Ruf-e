@@ -9,7 +9,7 @@ from typing import Literal
 
 ActionKind = Literal[
     "volume_set", "volume_change", "mute", "unmute",
-    "minimize_window", "minimize_all", "lock",
+    "minimize_window", "minimize_all", "lock", "media_pause", "media_play",
 ]
 
 
@@ -71,6 +71,11 @@ def parse_command(text: str) -> Action | None:
         text = text[len("пожалуйста "):]
     if text.endswith(" пожалуйста"):
         text = text[:-len(" пожалуйста")]
+    # A common transposition in typed commands; spoken recognition uses громче.
+    text = re.sub(r"\bгрочме\b", "громче", text)
+
+    if text in _MEDIA_PHRASES:
+        return Action(_MEDIA_PHRASES[text])
 
     fixed: dict[str, ActionKind] = {
         "выключи звук": "mute",
@@ -91,27 +96,39 @@ def parse_command(text: str) -> Action | None:
     if text in fixed:
         return Action(fixed[text])
 
-    match = re.fullmatch(r"(?:(?:сделай|давай) )?(громче|тише)(?: на (.+))?", text)
+    match = re.fullmatch(r"(?:(?:сделай|давай) )?(?:(?:звук|громкость) )?(громче|тише)(?: (?:на )?(.+))?", text)
     if match:
         amount = 10 if match[2] is None else _number(match[2])
         if amount is not None:
             return Action("volume_change", amount if match[1] == "громче" else -amount)
         return None
 
-    match = re.fullmatch(r"(увеличь|повысь|прибавь|уменьши|понизь|убавь) громкость(?: на (.+))?", text)
+    match = re.fullmatch(r"(увеличь|повысь|прибавь|добавь|подними|уменьши|понизь|убавь|снизь) (?:громкость|звук)(?: на (.+))?", text)
     if match:
         amount = 10 if match[2] is None else _number(match[2])
         if amount is not None:
-            direction = 1 if match[1] in {"увеличь", "повысь", "прибавь"} else -1
+            direction = 1 if match[1] in {"увеличь", "повысь", "прибавь", "добавь", "подними"} else -1
             return Action("volume_change", direction * amount)
         return None
 
-    match = re.fullmatch(r"(?:(?:установи|поставь|сделай) )?громкость (?:на )?(.+)", text)
+    match = re.fullmatch(r"(?:(?:установи|поставь|сделай|выставь|установить) )?(?:громкость|звук|уровень громкости|уровень звука) (?:на )?(.+)", text)
     if match:
         amount = _number(match[1])
         if amount is not None:
             return Action("volume_set", amount)
     return None
+
+
+_MEDIA_PHRASES: dict[str, ActionKind] = {}
+for phrase in ["пауза", "на паузу", "поставь паузу", "поставь на паузу", "приостанови", "останови", "сделай паузу"]:
+    _MEDIA_PHRASES[phrase] = "media_pause"
+for noun in ["музыку", "видео", "проигрыватель", "воспроизведение", "трек", "песню"]:
+    for phrase in [f"поставь {noun} на паузу", f"приостанови {noun}", f"останови {noun}"]:
+        _MEDIA_PHRASES[phrase] = "media_pause"
+    for phrase in [f"продолжи {noun}", f"продолжить {noun}", f"возобнови {noun}", f"возобновить {noun}", f"включи {noun}", f"запусти {noun}"]:
+        _MEDIA_PHRASES[phrase] = "media_play"
+for phrase in ["продолжи", "продолжить", "продолжай", "возобнови", "возобновить", "возобнови воспроизведение", "сними с паузы", "убери паузу", "снять с паузы"]:
+    _MEDIA_PHRASES[phrase] = "media_play"
 
 
 def command_phrases() -> list[str]:
@@ -124,6 +141,10 @@ def command_phrases() -> list[str]:
         "громче", "тише", "сделай громче", "сделай тише",
         "увеличь громкость", "уменьши громкость",
     ]
+    phrases.extend(_MEDIA_PHRASES)
+    for verb in ["увеличь", "повысь", "прибавь", "добавь", "подними", "уменьши", "понизь", "убавь", "снизь"]:
+        for noun in ["звук", "громкость"]:
+            phrases.append(f"{verb} {noun}")
     for value in range(101):
         words = _number_words(value)
         phrases.extend([
@@ -133,4 +154,16 @@ def command_phrases() -> list[str]:
             f"громче на {words} процентов", f"тише на {words} процентов",
             f"увеличь громкость на {words} процентов", f"уменьши громкость на {words} процентов",
         ])
-    return phrases
+        # Representative phrases cover the ASR bigrams without enumerating
+        # every equivalent combination and bloating the recognition graph.
+        phrases.extend([
+            f"звук {words}", f"звук на {words}", f"установи звук на {words} процентов",
+            f"выставь уровень звука на {words}", f"установить уровень громкости {words}",
+            f"сделай звук громче на {words}", f"сделай звук тише на {words}",
+            f"громче на {words}", f"тише на {words}",
+            f"прибавь звук на {words}", f"убавь звук на {words}",
+        ])
+    phrases += ["пожалуйста " + p for p in list(_MEDIA_PHRASES)]
+    # The small model lacks the imperative "возобнови". Keep it for typed
+    # commands, but use "возобновить" in speech; never reduce it to a bare noun.
+    return [p for p in dict.fromkeys(phrases) if "возобнови" not in p.split()]
