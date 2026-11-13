@@ -6,18 +6,21 @@ ManifestSupportedOS Win10
 !include "WinVer.nsh"
 Name "Джарвис"
 Icon "../src/jarvis_pc/assets/jarvis.ico"
-OutFile "${OUTPUT}/Jarvis-Setup-0.4.0-x64.exe"
+OutFile "${OUTPUT}/Jarvis-Setup-0.4.1-x64.exe"
 InstallDir "$LOCALAPPDATA\Programs\JarvisPC"
+InstallDirRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "InstallLocation"
 RequestExecutionLevel user
 SetCompressor /SOLID zlib
-VIProductVersion "0.4.0.0"
+VIProductVersion "0.4.1.0"
 VIAddVersionKey "ProductName" "Джарвис"
 VIAddVersionKey "FileDescription" "Установка голосового помощника Джарвис"
-VIAddVersionKey "FileVersion" "0.4.0"
+VIAddVersionKey "FileVersion" "0.4.1"
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\Jarvis.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "Запустить Джарвис"
 !insertmacro MUI_PAGE_WELCOME
+!define MUI_PAGE_CUSTOMFUNCTION_LEAVE CheckInstallDirectory
+!insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -39,11 +42,28 @@ Function .onInit
   MessageBox MB_ICONINFORMATION "Закройте окно Джарвиса перед установкой обновления."
   Abort
   available:
-  IfFileExists "$INSTDIR\*.*" 0 ready
-  IfFileExists "$INSTDIR\.jarvis-install" ready 0
+FunctionEnd
+
+Function CheckInstallDirectory
+  IfFileExists "$INSTDIR\*.*" 0 checkWritable
+  IfFileExists "$INSTDIR\.jarvis-install" checkWritable 0
   MessageBox MB_ICONSTOP "Папка $INSTDIR уже занята другими файлами. Установка остановлена."
   Abort
-  ready:
+  checkWritable:
+  ClearErrors
+  CreateDirectory "$INSTDIR"
+  IfErrors 0 tryWrite
+  MessageBox MB_ICONSTOP "Нет доступа к папке $INSTDIR. Выберите папку, доступную вашему пользователю."
+  Abort
+  tryWrite:
+  ClearErrors
+  FileOpen $0 "$INSTDIR\.jarvis-write-test" w
+  IfErrors 0 writable
+  MessageBox MB_ICONSTOP "Нет права записи в папку $INSTDIR. Выберите другую папку."
+  Abort
+  writable:
+  FileClose $0
+  Delete "$INSTDIR\.jarvis-write-test"
 FunctionEnd
 
 Section "Джарвис"
@@ -51,14 +71,15 @@ Section "Джарвис"
   SetOutPath "$INSTDIR"
   File /r "${PAYLOAD}/*"
   FileOpen $0 "$INSTDIR\.jarvis-install" w
-  FileWrite $0 "JarvisPC 0.4.0"
+  FileWrite $0 "JarvisPC 0.4.1"
   FileClose $0
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateDirectory "$SMPROGRAMS\Джарвис"
   CreateShortcut "$SMPROGRAMS\Джарвис\Джарвис.lnk" "$INSTDIR\Jarvis.exe"
   CreateShortcut "$DESKTOP\Джарвис.lnk" "$INSTDIR\Jarvis.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "DisplayName" "Джарвис"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "DisplayVersion" "0.4.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "DisplayVersion" "0.4.1"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "DisplayIcon" "$INSTDIR\Jarvis.exe"
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\JarvisPC" "NoModify" 1

@@ -146,7 +146,7 @@ class JarvisWindow:
         footer = tk.Frame(self.root, bg=BG, padx=28, pady=12)
         footer.pack(side="bottom", fill="x", before=self.tabs)
         self.label(footer, "Аудио остаётся на вашем компьютере", 9, MUTED).pack(side="left")
-        self.label(footer, "Windows 10 / 11  •  v0.4.0", 9, MUTED).pack(side="right")
+        self.label(footer, "Windows 10 / 11  •  v0.4.1", 9, MUTED).pack(side="right")
         self._build_commands_tab(commands)
 
     def _build_commands_tab(self, parent):
