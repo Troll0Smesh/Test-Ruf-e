@@ -144,6 +144,30 @@ class AssistantTests(unittest.TestCase):
         self.assertFalse(self.assistant.active)
         self.assertIn("Команда не распознана уверенно. Скажите «Джарвис» и повторите.", self.messages)
 
+    def test_unknown_site_can_retry_with_same_audio_after_confirmed_wake(self):
+        heard = []
+        self.assistant = Assistant(
+            self.recognizer, self.actions.append, self.messages.append,
+            Settings(silence_seconds=0.3, command_timeout=1.5),
+            fallback_parse=lambda audio, targets: heard.append(audio) or Action("open_url", "https://example.com/"),
+        )
+        self.feed(partial="джарвис")
+        self.finish("джарвис открой сайт незнакомый")
+        self.assertEqual(self.actions, [Action("open_url", "https://example.com/")])
+        self.assertTrue(heard[0])
+        self.assertFalse(self.assistant.active)
+
+    def test_fallback_never_runs_without_confirmed_wake(self):
+        heard = []
+        self.assistant = Assistant(
+            self.recognizer, self.actions.append, self.messages.append,
+            Settings(silence_seconds=0.3, command_timeout=1.5),
+            fallback_parse=lambda audio, targets: heard.append(audio),
+        )
+        self.feed(partial="джарвис")
+        self.finish("открой сайт example")
+        self.assertEqual(heard, [])
+
     def test_low_confidence_command_rejects(self):
         self.feed(partial="джарвис")
         self.finish("джарвис заблокируй компьютер", confidence=0.4)

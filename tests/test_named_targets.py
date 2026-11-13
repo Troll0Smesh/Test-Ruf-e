@@ -52,6 +52,13 @@ class NamedTargetsTests(unittest.TestCase):
                 Actions({**TARGETS, "windows": {"браузер": "Firefox"}}).execute(Action("minimize_named", "браузер"))
             user32.return_value.ShowWindow.assert_not_called()
 
+    def test_changed_browser_tab_title_still_matches_single_window(self):
+        targets = {**TARGETS, "windows": {"браузер": "Video - Google Chrome"}}
+        with patch.object(sys, "platform", "win32"), patch("jarvis_pc.actions.visible_windows", return_value=[(42, "Music - Google Chrome")]), \
+             patch("jarvis_pc.actions._user32") as user32:
+            Actions(targets).execute(Action("minimize_named", "браузер"))
+            user32.return_value.ShowWindow.assert_called_once_with(42, 6)
+
     def test_application_and_site_use_saved_values(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "notepad.exe"

@@ -41,7 +41,7 @@ def clean_targets(data: object) -> dict[str, dict[str, str]]:
         entries = data.get(kind)
         if not isinstance(entries, dict):
             continue
-        for alias, value in list(entries.items())[:100]:
+        for alias, value in list(entries.items())[:300]:
             if not isinstance(alias, str) or not isinstance(value, str):
                 continue
             try:

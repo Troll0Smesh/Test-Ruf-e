@@ -28,7 +28,7 @@ class GuiTests(unittest.TestCase):
         self.app.device_var.set("Микрофон")
         self.app.silence_var.set("1,2")
         self.app.toggle_listening()
-        self.listener.start.assert_called_once_with(device=3, silence=1.2, dry_run=self.app.dry_run.get(),
+        self.listener.start.assert_called_once_with(device=3, silence=1.2, gain=self.app.settings["gain"], dry_run=self.app.dry_run.get(),
                                                      targets=self.app.settings["targets"])
         self.assertEqual(str(self.app.device_box["state"]), "disabled")
         self.app.toggle_listening()

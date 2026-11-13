@@ -19,6 +19,7 @@ TEXT = "#edf5ff"
 MUTED = "#95a6bc"
 ACCENT = "#66e2c4"
 FONT = "Segoe UI" if sys.platform == "win32" else "DejaVu Sans"
+GAINS = {"Обычная": 1.0, "Повышенная": 1.7, "Высокая": 2.3}
 
 
 class JarvisWindow:
@@ -113,6 +114,11 @@ class JarvisWindow:
         self.device_box.pack(fill="x", pady=(7, 7))
         self.refresh = self.button(right, "Обновить устройства", self.refresh_devices)
         self.refresh.pack(anchor="w", pady=(0, 17))
+        self.label(right, "Чувствительность микрофона", 11).pack(anchor="w")
+        selected_gain = min(GAINS, key=lambda label: abs(GAINS[label] - self.settings["gain"]))
+        self.gain_var = tk.StringVar(value=selected_gain)
+        self.gain_box = ttk.Combobox(right, textvariable=self.gain_var, state="readonly", values=list(GAINS))
+        self.gain_box.pack(fill="x", pady=(7, 12))
         row = tk.Frame(right, bg=PANEL)
         row.pack(fill="x")
         self.label(row, "Пауза в конце команды", 11).pack(side="left")
@@ -146,7 +152,7 @@ class JarvisWindow:
         footer = tk.Frame(self.root, bg=BG, padx=28, pady=12)
         footer.pack(side="bottom", fill="x", before=self.tabs)
         self.label(footer, "Аудио остаётся на вашем компьютере", 9, MUTED).pack(side="left")
-        self.label(footer, "Windows 10 / 11  •  v0.4.2", 9, MUTED).pack(side="right")
+        self.label(footer, "Windows 10 / 11  •  v0.5.0", 9, MUTED).pack(side="right")
         self._build_commands_tab(commands)
 
     def _build_commands_tab(self, parent):
@@ -173,12 +179,13 @@ class JarvisWindow:
             "«Сверни окно» — активное окно. «Сверни все окна», «покажи рабочий стол» — все окна. "
             "«Заблокируй ноутбук», «заблокируй экран» — блокировка Windows.\n\n"
             "ИМЕННЫЕ ОКНА, ПРИЛОЖЕНИЯ И САЙТЫ\n"
-            "Добавьте имя ниже. Затем говорите «сверни окно <имя>», «разверни окно <имя>», "
-            "«открой приложение <имя>» или «открой сайт <имя>». Новые имена действуют после перезапуска прослушивания."
+            "Открытые окна и приложения из меню «Пуск» находятся автоматически. Скажите «сверни окно браузер», "
+            "«разверни окно браузер» или «запусти блокнот». Сайты: «открой ютуб», «открой википедию». "
+            "Дополнительные имена можно сохранить ниже. Новые объекты находятся во время прослушивания."
         ))
         guide.configure(state="disabled")
         self.button(parent, "Показать полный список фраз", self.show_all_commands).pack(anchor="w", pady=(8, 0))
-        self.label(parent, "ИМЕНА ДЛЯ ГОЛОСОВЫХ КОМАНД", 11, ACCENT).pack(anchor="w", pady=(15, 7))
+        self.label(parent, "ДОПОЛНИТЕЛЬНЫЕ ИМЕНА", 11, ACCENT).pack(anchor="w", pady=(15, 7))
         body = tk.Frame(parent, bg=BG)
         body.pack(fill="both", expand=True)
         left = tk.Frame(body, bg=PANEL, padx=12, pady=12)
@@ -214,7 +221,8 @@ class JarvisWindow:
         dialog.configure(bg=BG)
         frame = tk.Frame(dialog, bg=BG, padx=15, pady=15)
         frame.pack(fill="both", expand=True)
-        phrases = command_phrases(self.settings["targets"])
+        from .discovery import available_targets
+        phrases = command_phrases(available_targets(self.settings["targets"]))
         self.label(frame, f"ВСЕ РАСПОЗНАВАЕМЫЕ ФРАЗЫ · {len(phrases)}", 11, ACCENT).pack(anchor="w")
         search = tk.StringVar()
         entry = ttk.Entry(frame, textvariable=search)
@@ -283,6 +291,7 @@ class JarvisWindow:
 
     def _persist(self):
         save_settings({"device": self.device_var.get(), "silence": self.settings["silence"],
+                       "gain": self.settings["gain"],
                        "dry_run": self.dry_run.get(), "targets": self.settings["targets"]})
 
     def save_target(self):
@@ -332,6 +341,7 @@ class JarvisWindow:
 
     def controls(self, enabled):
         self.device_box.configure(state="readonly" if enabled else "disabled")
+        self.gain_box.configure(state="readonly" if enabled else "disabled")
         self.silence_box.configure(state="normal" if enabled else "disabled")
         self.test_check.configure(state="normal" if enabled else "disabled")
         self.refresh.configure(state="normal" if enabled else "disabled")
@@ -351,6 +361,7 @@ class JarvisWindow:
             return
         try:
             self.settings["silence"] = silence
+            self.settings["gain"] = GAINS[self.gain_var.get()]
             self._persist()
         except OSError as error:
             self.log(f"Не удалось сохранить настройки: {error}")
@@ -360,7 +371,8 @@ class JarvisWindow:
         self.toggle.configure(text="Остановить", state="normal")
         self.status.configure(text="Подготовка…", fg=TEXT)
         self.hint.configure(text="Загружаю распознавание")
-        self.listener.start(device=self.devices.get(self.device_var.get()), silence=silence, dry_run=self.dry_run.get(), targets=self.settings["targets"])
+        self.listener.start(device=self.devices.get(self.device_var.get()), silence=silence,
+                            gain=self.settings["gain"], dry_run=self.dry_run.get(), targets=self.settings["targets"])
 
     def poll(self):
         for _ in range(100):

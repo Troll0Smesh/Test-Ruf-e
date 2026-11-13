@@ -5,6 +5,7 @@ from __future__ import annotations
 from queue import Empty, Full, Queue
 from threading import Event
 from typing import TYPE_CHECKING
+from array import array
 import wave
 import time
 
@@ -15,6 +16,16 @@ SAMPLE_RATE = 16000
 FRAME_MS = 30
 FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS // 1000
 FRAME_BYTES = FRAME_SAMPLES * 2
+
+
+def amplify(frame: bytes, gain: float) -> bytes:
+    """Boost a quiet PCM16 microphone without adding another audio library."""
+    if gain == 1:
+        return frame
+    samples = array("h", frame)
+    for index, sample in enumerate(samples):
+        samples[index] = max(-32768, min(32767, round(sample * gain)))
+    return samples.tobytes()
 
 
 def run_wav(path: str, assistant: Assistant, vad) -> None:
@@ -31,7 +42,8 @@ def run_wav(path: str, assistant: Assistant, vad) -> None:
             assistant.feed(frame, vad.is_speech(frame, SAMPLE_RATE))
 
 
-def listen(assistant: Assistant, vad, device: int | str | None = None, stop_event: Event | None = None, on_level=None) -> None:
+def listen(assistant: Assistant, vad, device: int | str | None = None, stop_event: Event | None = None,
+           on_level=None, *, gain: float = 1.7, refresh=None) -> None:
     import sounddevice as sd
 
     frames: Queue[bytes] = Queue(maxsize=32)  # <= 0.96 s, ~31 KB PCM
@@ -52,6 +64,7 @@ def listen(assistant: Assistant, vad, device: int | str | None = None, stop_even
     ):
         assistant.notify("Микрофон включён. Скажите «Джарвис».")
         last_frame = time.monotonic()
+        last_refresh = last_frame
         level_frames = 0
         while not stop_event.is_set():
             if overflow.is_set():
@@ -79,8 +92,15 @@ def listen(assistant: Assistant, vad, device: int | str | None = None, stop_even
             if len(frame) != FRAME_BYTES:
                 assistant.reset()
                 continue
+            frame = amplify(frame, gain)
             level_frames += 1
             if on_level is not None and level_frames % 6 == 0:
                 peak = max(abs(sample) for sample in memoryview(frame).cast("h")) / 32768
                 on_level(peak)
             assistant.feed(frame, vad.is_speech(frame, SAMPLE_RATE))
+            if refresh is not None and not assistant.active and time.monotonic() - last_refresh >= 20:
+                try:
+                    refresh()
+                except Exception as error:
+                    assistant.notify(f"Не удалось обновить список окон: {error}")
+                last_refresh = time.monotonic()

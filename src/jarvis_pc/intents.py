@@ -7,12 +7,13 @@ import re
 from typing import Literal
 
 from .targets import clean_targets
+from .discovery import SITES
 
 
 ActionKind = Literal[
     "volume_set", "volume_change", "mute", "unmute",
     "minimize_window", "minimize_all", "minimize_named", "restore_named",
-    "open_app", "open_site", "lock", "media_pause", "media_play",
+    "open_app", "open_site", "open_url", "lock", "media_pause", "media_play",
 ]
 
 
@@ -64,16 +65,22 @@ def _number(text: str) -> int | None:
 
 def target_phrases(targets: dict | None) -> dict[str, Action]:
     phrases: dict[str, Action] = {}
-    for alias in clean_targets(targets)["windows"]:
+    saved = clean_targets(targets)
+    sites = {**SITES, **saved["sites"]}
+    for alias in saved["windows"]:
         for phrase in (f"сверни окно {alias}", f"сверни {alias}"):
             phrases[phrase] = Action("minimize_named", alias)
         for phrase in (f"разверни окно {alias}", f"разверни {alias}", f"покажи окно {alias}"):
             phrases[phrase] = Action("restore_named", alias)
-    for alias in clean_targets(targets)["apps"]:
-        for phrase in (f"открой приложение {alias}", f"запусти приложение {alias}", f"запусти {alias}"):
+    for alias in saved["apps"]:
+        forms = [f"открой приложение {alias}", f"запусти приложение {alias}", f"запусти {alias}"]
+        if alias not in sites:
+            forms.append(f"открой {alias}")
+        for phrase in forms:
             phrases[phrase] = Action("open_app", alias)
-    for alias in clean_targets(targets)["sites"]:
-        for phrase in (f"открой сайт {alias}", f"зайди на сайт {alias}", f"открой страницу {alias}"):
+    for alias in sites:
+        for phrase in (f"открой сайт {alias}", f"зайди на сайт {alias}", f"открой страницу {alias}",
+                       f"открой {alias}", f"зайди на {alias}"):
             phrases[phrase] = Action("open_site", alias)
     return phrases
 
@@ -96,6 +103,15 @@ def parse_command(text: str, targets: dict | None = None) -> Action | None:
     named = target_phrases(targets).get(text)
     if named is not None:
         return named
+
+    # A spoken domain can be opened without being saved first. The recognizer
+    # can only transcribe words present in its model; common sites above are
+    # always included in its constrained grammar.
+    match = re.fullmatch(r"(?:открой|зайди на) (?:сайт )?([а-яa-z0-9-]+) (?:точка )?(ру|рф|ком|орг|нет|ru|com|org|net)", text)
+    if match:
+        tld = {"ру": "ru", "ком": "com", "орг": "org", "нет": "net"}.get(match[2], match[2])
+        domain = f"{match[1]}.{tld}".encode("idna").decode("ascii")
+        return Action("open_url", f"https://{domain}/")
 
     if text in _MEDIA_PHRASES:
         return Action(_MEDIA_PHRASES[text])

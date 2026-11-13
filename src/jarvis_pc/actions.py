@@ -10,7 +10,8 @@ import sys
 import webbrowser
 from typing import TYPE_CHECKING
 
-from .targets import clean_targets
+from .targets import clean_targets, clean_value
+from .discovery import SITES
 
 if TYPE_CHECKING:
     from .intents import Action
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 
 _KINDS = frozenset({
     "volume_set", "volume_change", "mute", "unmute", "minimize_window",
-    "minimize_all", "minimize_named", "restore_named", "open_app", "open_site",
+    "minimize_all", "minimize_named", "restore_named", "open_app", "open_site", "open_url",
     "lock", "media_pause", "media_play",
 })
 
@@ -38,6 +39,10 @@ def _validate(action: Action) -> None:
     if action.kind in {"minimize_named", "restore_named", "open_app", "open_site"}:
         if not isinstance(action.value, str) or not action.value:
             raise ValueError("Укажите имя окна, приложения или сайта")
+    if action.kind == "open_url":
+        if not isinstance(action.value, str):
+            raise ValueError("Укажите адрес сайта")
+        clean_value("sites", action.value)
 
 
 def _user32():
@@ -102,6 +107,11 @@ def _find_window(title: str) -> int:
     windows = visible_windows()
     exact = [handle for handle, name in windows if name.casefold() == title.casefold()]
     matches = exact or [handle for handle, name in windows if title.casefold() in name.casefold()]
+    if not matches and " - " in title:
+        # Browser tab titles change. Match its stable application suffix only
+        # when exactly one top-level window still has that suffix.
+        suffix = title.rsplit(" - ", 1)[-1].casefold()
+        matches = [handle for handle, name in windows if name.casefold().endswith(" - " + suffix)]
     if not matches:
         raise ActionError(f"Окно «{title}» не найдено. Обновите его заголовок в настройках.")
     if len(matches) > 1:
@@ -114,6 +124,7 @@ class Actions:
 
     def __init__(self, targets: dict | None = None) -> None:
         self.targets = clean_targets(targets)
+        self.targets["sites"] = {**SITES, **self.targets["sites"]}
 
     def execute(self, action: Action) -> str:
         _validate(action)
@@ -131,6 +142,10 @@ class Actions:
             from .media import change_media
 
             return change_media(action.kind)
+        if action.kind == "open_url":
+            if not webbrowser.open(action.value):
+                raise ActionError("Браузер не открыл сайт")
+            return f"Сайт {action.value} открыт"
         if action.kind in {"minimize_named", "restore_named", "open_app", "open_site"}:
             kind = {"minimize_named": "windows", "restore_named": "windows", "open_app": "apps", "open_site": "sites"}[action.kind]
             value = self.targets[kind].get(action.value)

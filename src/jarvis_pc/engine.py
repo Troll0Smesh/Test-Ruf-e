@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import deque
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
@@ -54,12 +55,16 @@ class Assistant:
         notify: Callable[[str], object] = print,
         settings: Settings = Settings(),
         targets: dict | None = None,
+        fallback_parse: Callable[[bytes, dict | None], Action | None] | None = None,
     ) -> None:
         self.recognizer = recognizer
         self.execute = execute
         self.notify = notify
         self.settings = settings
         self.targets = targets
+        self.fallback_parse = fallback_parse
+        self.preroll: deque[bytes] = deque(maxlen=40)  # 1.2 s, at most 38 KiB
+        self.command_audio: list[bytes] = []  # at most 10 s while activated
         self.clock = 0.0
         self.active = False
         self.wake_confirmed = False
@@ -79,6 +84,8 @@ class Assistant:
         self.parts.clear()
         self.confidences.clear()
         self.wake_scores.clear()
+        self.preroll.clear()
+        self.command_audio.clear()
         self.idle_started = self.clock
 
     def _append(self, result: dict) -> None:
@@ -89,6 +96,11 @@ class Assistant:
 
     def feed(self, audio: bytes, is_speech: bool, duration: float = 0.03) -> None:
         self.clock += duration
+        if self.active:
+            if self.fallback_parse is not None:
+                self.command_audio.append(audio)
+        elif self.fallback_parse is not None:
+            self.preroll.append(audio)
         accepted = self.recognizer.AcceptWaveform(audio)
         result = json.loads(
             self.recognizer.Result() if accepted else self.recognizer.PartialResult()
@@ -109,6 +121,9 @@ class Assistant:
             self.started = self.clock
             self.last_voice = self.clock
             self.speech_pending = True
+            if self.fallback_parse is not None:
+                self.command_audio = list(self.preroll)
+                self.preroll.clear()
             self.notify("Слушаю…")
 
         if accepted:
@@ -152,6 +167,11 @@ class Assistant:
             return
 
         action = parse_command(command, self.targets) if confidence >= self.settings.min_confidence else None
+        if action is None and self.fallback_parse is not None:
+            try:
+                action = self.fallback_parse(b"".join(self.command_audio), self.targets)
+            except Exception:
+                action = None
         self.reset()  # disarm BEFORE the side effect; at most one action per wake
         if action is None:
             self.notify("Команда не распознана уверенно. Скажите «Джарвис» и повторите.")

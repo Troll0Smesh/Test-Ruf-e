@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: jarvis-release-v0.4.2
+  group: jarvis-release-v0.5.0
   cancel-in-progress: false
 
 jobs:
@@ -47,11 +47,11 @@ jobs:
       - name: Archive matching sources
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git archive --format=zip --prefix=Jarvis-Source-0.4.2/ --output=dist/Jarvis-Source-0.4.2.zip HEAD src packaging tests screenshots pyproject.toml README.md LICENSE .gitignore .github
+          git archive --format=zip --prefix=Jarvis-Source-0.5.0/ --output=dist/Jarvis-Source-0.5.0.zip HEAD src packaging tests screenshots pyproject.toml README.md LICENSE .gitignore .github
       - name: Upload assets and publish preview
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release upload v0.4.2-preview dist/Jarvis-Setup-0.4.2-x64.exe dist/Jarvis-Setup-0.4.2-x64.exe.sha256 dist/Jarvis-Source-0.4.2.zip screenshots/Jarvis-Main.png screenshots/Jarvis-Commands.png --clobber
-          gh release edit v0.4.2-preview --target "$GITHUB_SHA" --draft=false --prerelease --latest=false
+          gh release upload v0.5.0-preview dist/Jarvis-Setup-0.5.0-x64.exe dist/Jarvis-Setup-0.5.0-x64.exe.sha256 dist/Jarvis-Source-0.5.0.zip screenshots/Jarvis-Main.png screenshots/Jarvis-Commands.png --clobber
+          gh release edit v0.5.0-preview --target "$GITHUB_SHA" --draft=false --prerelease --latest=false
